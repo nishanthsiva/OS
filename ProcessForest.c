@@ -4,7 +4,7 @@
 #include <sys/wait.h>
 #include <string.h>
 
-int s,d, h;
+int s_tree=0,d_tree=0,s,d, h;
 int path_size;
 int path[100];
 
@@ -44,30 +44,41 @@ void getMessagePath(){
 			d_path[d_len++] = temp_d;
 		}
 	}
-	int merge_point[2];
-	int merged = 0;
-	for(j=0;j<d_len;j++){
-		for(i=0;i<s_len;i++){
-			if(d_path[j] == s_path[i]){
-				merge_point[0]=i;
-				merge_point[1]=j;
-				merged = 1;
+	if(s_tree == d_tree){
+		int merge_point[2];
+		int merged = 0;
+		for(j=0;j<d_len;j++){
+			for(i=0;i<s_len;i++){
+				if(d_path[j] == s_path[i]){
+					merge_point[0]=i;
+					merge_point[1]=j;
+					merged = 1;
+					break;
+				}
+			}
+			if(merged){
 				break;
 			}
 		}
-		if(merged){
-			break;
+		i=0;j=0;
+		for(i=0;i<=merge_point[0];i++){
+			path[i] = s_path[i];
 		}
-	}
-	i=0;j=0;
-	for(i=0;i<=merge_point[0];i++){
-		path[i] = s_path[i];
-	}
-	for(j=merge_point[1]-1;j>=0;j--){
-		path[i++] = d_path[j];
+		for(j=merge_point[1]-1;j>=0;j--){
+			path[i++] = d_path[j];
+		}
+	}else{
+		for(i=0;i<s_len;i++){
+			path[i] = s_path[i];
+		}
+		path[i++] = -10;
+		for(j=d_len-1;j>=0;j--){
+			path[i++] = d_path[j];
+		}
 	}
 	path_size = i;
 	printf("\n");
+	
 }
 
 int nodeInPath(int node_index){
@@ -81,40 +92,124 @@ int nodeInPath(int node_index){
 	return 0;
 }
 
-int find_prev_node(int current_node){
+int nodeInForestPath(int node_index, int tree_index){
 	int i=0;
-	for(i=0;i<path_size;i++){
-		if(i!=0){
-			if(path[i] == current_node){
-				return path[i-1]; 
+	if(tree_index != s_tree && tree_index != d_tree){
+		return 0;
+	}
+	else if(s_tree == d_tree){
+		if(tree_index != s_tree)
+			return 0;
+		else{
+			for(i=0;i<path_size;i++){
+				if(path[i] == node_index){
+					return 1;
+				}
 			}
+			return 0;
+		}
+	}else{
+		if(tree_index == s_tree){
+			for(i=0;path[i] != -10;i++){
+				if(path[i] == node_index){
+					return 1;
+				}
+			}
+			return 0;
+		}else{
+			int tree_switch = 0;
+			for(i=0;i<path_size;i++){
+				if(path[i] == -10){
+					tree_switch = 1;
+				}
+				if(tree_switch == 0){
+					continue;
+				}
+				if(path[i] == node_index){
+					return 1;
+				}
+			}
+			return 0;
 		}
 	}
+}
+
+int find_prev_node(int current_node, int tree_index){
+	int i=0;
+	if(tree_index == s_tree){
+		for(i=0;path[i] != -10 && i<path_size;i++){
+			if(i!=0){
+				if(path[i] == current_node){
+					return path[i-1];
+				}
+			}
+		}
+		return -1;
+	}else{
+		int tree_switch = 0;
+		for(i=0;i<path_size;i++){
+			if(path[i] == -10){
+				tree_switch = 1;
+			}
+			if(tree_switch == 0){
+				continue;
+			}
+			if(i!=0){
+				if(path[i] == current_node){
+					return path[i-1]; 
+				}
+			}
+		}
+		return -1;
+	}
+	
 	return -1;
 }
 
-int find_next_node(int current_node){
+int find_next_node(int current_node, int tree_index){
 	int i=0;
-	for(i=0;i<path_size;i++){
-		if(i!=(path_size -1)){
-			if(path[i] == current_node){
-				return path[i+1]; 
+	if(tree_index == s_tree){
+		for(i=0;path[i] != -10 && i<path_size;i++){
+			if(i!=path_size-1){
+				if(path[i] == current_node){
+					return path[i+1];
+				}
 			}
 		}
+		return -1;
+	}else{
+		int tree_switch = 0;
+		for(i=0;i<path_size;i++){
+			if(path[i] == -10){
+				tree_switch = 1;
+			}
+			if(tree_switch == 0){
+				continue;
+			}
+			if(i!=(path_size -1)){
+				if(path[i] == current_node){
+					return path[i+1]; 
+				}
+			}
+		}
+		return -1;
 	}
+	
 	return -1;
 }
 
 int main(){
 	int p,i,n,ab;
-	s=7;d=14;h=4;
+	s_tree = 1;d_tree = 0;
+	s=14;d=10;h=4;
 	getMessagePath();
 	printf("Final Path -\t");
 	for(i=0;i<path_size;i++){
 		printf("%d\t",path[i]);
 	}
-	int fd[15][2];
-	for(i=0;i<15;i++){
+	//printf("\nIS in PAth - %d\n",nodeInForestPath(6,1));
+	int fd[30][2];
+	for(i=0;i<30;i++){
 		fd[i][0]= -1;
 		fd[i][1] = -1;
 	}
@@ -124,22 +219,32 @@ int main(){
 	char dest_buffer[50];
 	pid_t t1=-1,t2=-1;
 	printf("root is %d, t1 is %d, t2 is %d\n",getpid(),t1,t2);
-	int parent_index = 0;
+	int parent_index = -10;
+	int tree_index = 0;
 	int nbytes;
-	pipe(fd[0]);
-	for(i=1;i<=3;i++){
+	for(i=1;i<=h;i++){
 		t1= fork();
 		if(t1!=0){
 			t2 = fork();
 		}
 		if(t1==0 && t2!=0){ // first child is invoked
-			parent_index = (parent_index*2)+1;
-			pipe(fd[parent_index]);
+			if(parent_index == -10){
+				parent_index = 0;
+			}else{
+				parent_index = (parent_index*2)+1;
+				//pipe(fd[parent_index]);
+			}
+			pipe(fd[(tree_index*15)+parent_index]);
 			
 		}
 		if(t2==0 && t1!=0){ // second child is invoked
-			parent_index = (parent_index*2)+2;
-			pipe(fd[parent_index]);
+			if(parent_index == -10){
+				parent_index = 0;
+				tree_index = 1;
+			}else{
+				parent_index = (parent_index*2)+2;
+			}
+			pipe(fd[(tree_index*15)+parent_index]);
 		}
 		if(t1!=0 && t2!=0){
 
@@ -147,25 +252,42 @@ int main(){
 		}
 		t1=-1;t2=-1;
 	}
-	//printf("PIPES of %d - %d & %d\n",parent_index,fd[parent_index][0], fd[parent_index][1]);fflush(stdout);
-	while(nodeInPath(parent_index) == 1){
-		//printf("entering while %d\n",parent_index);fflush(stdout);
+	
+	//printf("PIPES of %d in %d tree - %d & %d\n",parent_index,tree_index,fd[(tree_index*15)+parent_index][0], fd[(tree_index*15)+parent_index][1]);fflush(stdout);
+	while(nodeInForestPath(parent_index, tree_index) == 1){
+		//printf("Prev Node for %d from Tree %d in Path - %d\n",parent_index,tree_index,find_prev_node(parent_index,tree_index));fflush(stdout);
+		/*
+		*ignore process with index -10
+		*
+		*/
 		nbytes = 0;
-		if(parent_index == s){
-			int next_node = find_next_node(s);
-			if(next_node < parent_index){ //if next node is parent then write to parent
-				write(fd[next_node][1], "I am message", (strlen("I am message")+1));
-				printf("Transmitting from source at %d through %d pipe of %d\n",s,fd[next_node][1],next_node);fflush(stdout);
-				close(fd[next_node][1]);
-			}else{ // else write to self
-				write(fd[parent_index][1], "I am message", (strlen("I am message")+1));
-				printf("Transmitting from source at %d through %d pipe of %d\n",s,fd[parent_index][1],parent_index);fflush(stdout);
-				close(fd[parent_index][1]);
+		if(parent_index == s && tree_index == s_tree){
+			int next_node = find_next_node(s, s_tree);
+			if( next_node == -10){
+				//write to shared memory
+			}else if(next_node != -1{
+				if(next_node < parent_index){ //if next node is parent then write to parent
+					write(fd[(15*tree_index)+next_node][1], "I am message", (strlen("I am message")+1));
+					printf("Transmitting from source at %d through %d pipe of %d\n",s,fd[(15*tree_index)+next_node][1],(15*tree_index)+next_node);fflush(stdout);
+					close(fd[(15*tree_index)+next_node][1]);
+				}else{ // else write to self
+					write(fd[(15*tree_index)+parent_index][1], "I am message", (strlen("I am message")+1));
+					printf("Transmitting from source at %d through %d pipe of %d\n",s,fd[(15*tree_index)+parent_index][1],(15*tree_index)+parent_index);fflush(stdout);
+					close(fd[(15*tree_index)+parent_index][1]);
+				}
 			}
+			
 			exit(0);
 		}else if(parent_index != d){
-			int next_node = find_next_node(parent_index);
-			int prev_node = find_prev_node(parent_index);
+			int next_node = find_next_node(parent_index,tree_index);
+			int prev_node = find_prev_node(parent_index,tree_index);
+			if(prev_node == -10){
+				//read from shared mem and write to self
+			}
+			if(next_node == -10){
+				//read from self and write to shared mem
+			}
+
 			//printf("Preparing to forward at %d\n",parent_index);fflush(stdout);
 			if(prev_node < parent_index && next_node > parent_index){//prev is parent and next is child
 				nbytes = read(fd[prev_node][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
@@ -185,21 +307,24 @@ int main(){
 			}
 			exit(0);
 			
-		}else if(parent_index == d){
-			int prev_node = find_prev_node(parent_index);
-			if(prev_node < parent_index){ // if prev node is parent
-				nbytes = read(fd[prev_node][0], dest_buffer, sizeof(dest_buffer));
-				close(fd[prev_node][0]);
-			}else{
-				nbytes = read(fd[parent_index][0], dest_buffer, sizeof(dest_buffer));
-				close(fd[parent_index][0]);
+		}else if(parent_index == d && tree_index == d_tree){
+			int prev_node = find_prev_node(parent_index, tree_index);
+			if(prev_node == -10){
+				//read from shared memory
+			}else if(prev_node != -1){
+				if(prev_node < parent_index){ // if prev node is parent
+					nbytes = read(fd[(15*tree_index)+prev_node][0], dest_buffer, sizeof(dest_buffer));
+					close(fd[(15*tree_index)+prev_node][0]);
+				}else{
+					nbytes = read(fd[(15*tree_index)+parent_index][0], dest_buffer, sizeof(dest_buffer));
+					close(fd[(15*tree_index)+parent_index][0]);
+				}
+				printf("Transmission complete at %d with %s\n",(15*tree_index)+parent_index,dest_buffer);fflush(stdout);
+				exit(0);
 			}
-			printf("Transmission complete at %d with %s\n",parent_index,dest_buffer);fflush(stdout);
-			exit(0);
-			
 		}
 	}
 	wait(NULL);
 	wait(NULL);
-	//printf("Exiting %d\n",parent_index);
+	//printf("Exiting %d on %d\n",parent_index, tree_index);
 }
