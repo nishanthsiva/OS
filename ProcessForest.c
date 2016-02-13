@@ -200,8 +200,8 @@ int find_next_node(int current_node, int tree_index){
 
 int main(){
 	int p,i,n,ab;
-	s_tree = 1;d_tree = 0;
-	s=14;d=10;h=4;
+	s_tree = 1;d_tree = 1;
+	s=7;d=0;h=4;
 	getMessagePath();
 	printf("Final Path -\t");
 	for(i=0;i<path_size;i++){
@@ -265,14 +265,14 @@ int main(){
 			int next_node = find_next_node(s, s_tree);
 			if( next_node == -10){
 				//write to shared memory
-			}else if(next_node != -1{
+			}else if(next_node != -1){
 				if(next_node < parent_index){ //if next node is parent then write to parent
 					write(fd[(15*tree_index)+next_node][1], "I am message", (strlen("I am message")+1));
-					printf("Transmitting from source at %d through %d pipe of %d\n",s,fd[(15*tree_index)+next_node][1],(15*tree_index)+next_node);fflush(stdout);
+					printf("Transmitting from source at %d of Tree %d through %d pipe of %d\n",s,tree_index,fd[(15*tree_index)+next_node][1],(15*tree_index)+next_node);fflush(stdout);
 					close(fd[(15*tree_index)+next_node][1]);
 				}else{ // else write to self
 					write(fd[(15*tree_index)+parent_index][1], "I am message", (strlen("I am message")+1));
-					printf("Transmitting from source at %d through %d pipe of %d\n",s,fd[(15*tree_index)+parent_index][1],(15*tree_index)+parent_index);fflush(stdout);
+					printf("Transmitting from source at %d of Tree %d through %d pipe of %d\n",s,tree_index,fd[(15*tree_index)+parent_index][1],(15*tree_index)+parent_index);fflush(stdout);
 					close(fd[(15*tree_index)+parent_index][1]);
 				}
 			}
@@ -287,25 +287,27 @@ int main(){
 			if(next_node == -10){
 				//read from self and write to shared mem
 			}
+			if(prev_node != -10 && next_node != -10){
+				//printf("Preparing to forward at %d\n",parent_index);fflush(stdout);
+				if(prev_node < parent_index && next_node > parent_index){//prev is parent and next is child
+					nbytes = read(fd[(15*tree_index)+prev_node][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
+					close(fd[(15*tree_index)+prev_node][0]);
+					write(fd[(15*tree_index)+parent_index][1], dest_buffer, sizeof(dest_buffer));
+					printf("Forwarding at %d of Tree %d\n",parent_index,tree_index);fflush(stdout);
+					close(fd[(15*tree_index)+parent_index][1]);
+					//printf("Writing --%d bytes-- to %d and Exiting %d\n",nbytes,next_node,parent_index);fflush(stdout);
 
-			//printf("Preparing to forward at %d\n",parent_index);fflush(stdout);
-			if(prev_node < parent_index && next_node > parent_index){//prev is parent and next is child
-				nbytes = read(fd[prev_node][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
-				close(fd[prev_node][0]);
-				write(fd[parent_index][1], dest_buffer, sizeof(dest_buffer));
-				printf("Forwarding at %d \n",parent_index);fflush(stdout);
-				close(fd[parent_index][1]);
-				//printf("Writing --%d bytes-- to %d and Exiting %d\n",nbytes,next_node,parent_index);fflush(stdout);
-
-			}else if(prev_node > parent_index && next_node < parent_index){//prev is child and next is parent
-				nbytes = read(fd[parent_index][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
-				close(fd[parent_index][0]);
-				write(fd[next_node][1], dest_buffer, sizeof(dest_buffer));
-				printf("Forwarding at %d \n",parent_index);fflush(stdout);
-				close(fd[next_node][1]);
-				//printf("Writing --%d bytes-- to %d and Exiting %d\n",nbytes,next_node,parent_index);fflush(stdout);
+				}else if(prev_node > parent_index && next_node < parent_index){//prev is child and next is parent
+					nbytes = read(fd[(15*tree_index)+parent_index][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
+					close(fd[(15*tree_index)+parent_index][0]);
+					write(fd[(15*tree_index)+next_node][1], dest_buffer, sizeof(dest_buffer));
+					printf("Forwarding at %d of Tree %d\n",parent_index,tree_index);fflush(stdout);
+					close(fd[(15*tree_index)+next_node][1]);
+					//printf("Writing --%d bytes-- to %d and Exiting %d\n",nbytes,next_node,parent_index);fflush(stdout);
+				}
+				exit(0);
 			}
-			exit(0);
+			
 			
 		}else if(parent_index == d && tree_index == d_tree){
 			int prev_node = find_prev_node(parent_index, tree_index);
@@ -319,7 +321,7 @@ int main(){
 					nbytes = read(fd[(15*tree_index)+parent_index][0], dest_buffer, sizeof(dest_buffer));
 					close(fd[(15*tree_index)+parent_index][0]);
 				}
-				printf("Transmission complete at %d with %s\n",(15*tree_index)+parent_index,dest_buffer);fflush(stdout);
+				printf("Transmission complete at %d of Tree %d with %s\n",parent_index,tree_index,dest_buffer);fflush(stdout);
 				exit(0);
 			}
 		}
