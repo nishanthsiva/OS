@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <math.h>
 
 int s,d, h;
 int path_size;
@@ -105,29 +106,35 @@ int find_next_node(int current_node){
 	return -1;
 }
 
-int main(){
+int main(int argc, char* argv[]){
 	int p,i,n,ab;
-	s=7;d=14;h=4;
+	h = (int) strtol(argv[1], (char **)NULL, 10);
+	char *m = malloc(sizeof(argv[2]));
+	strcpy(m,argv[2]);
+	s = (int) strtol(argv[3], (char **)NULL, 10);
+	d = (int) strtol(argv[4], (char **)NULL, 10);
+	//s=7;d=8;h=4;
 	getMessagePath();
 	printf("Final Path -\t");
 	for(i=0;i<path_size;i++){
 		printf("%d\t",path[i]);
 	}
-	int fd[15][2];
-	for(i=0;i<15;i++){
+	int pipe_count = (int) (pow(2,h) -1);
+	int fd[pipe_count][2];
+	for(i=0;i<pipe_count;i++){
 		fd[i][0]= -1;
 		fd[i][1] = -1;
 	}
 	pid_t root_pid = getpid();
 	printf("\n");
-	char readbuffer[50];
-	char dest_buffer[50];
+	char readbuffer[100];
+	char dest_buffer[100];
 	pid_t t1=-1,t2=-1;
-	printf("root is %d, t1 is %d, t2 is %d\n",getpid(),t1,t2);
+	//printf("root is %d, t1 is %d, t2 is %d\n",getpid(),t1,t2);
 	int parent_index = 0;
 	int nbytes;
 	pipe(fd[0]);
-	for(i=1;i<=3;i++){
+	for(i=1;i<=(h-1);i++){
 		t1= fork();
 		if(t1!=0){
 			t2 = fork();
@@ -154,12 +161,12 @@ int main(){
 		if(parent_index == s){
 			int next_node = find_next_node(s);
 			if(next_node < parent_index){ //if next node is parent then write to parent
-				write(fd[next_node][1], "I am message", (strlen("I am message")+1));
-				printf("Transmitting from source at %d through %d pipe of %d\n",s,fd[next_node][1],next_node);fflush(stdout);
+				write(fd[next_node][1], m, (strlen(m)+1));
+				printf("Transmitting from source at %d\n",s);fflush(stdout);
 				close(fd[next_node][1]);
 			}else{ // else write to self
-				write(fd[parent_index][1], "I am message", (strlen("I am message")+1));
-				printf("Transmitting from source at %d through %d pipe of %d\n",s,fd[parent_index][1],parent_index);fflush(stdout);
+				write(fd[parent_index][1], m, (strlen(m)+1));
+				printf("Transmitting from source at %d\n",s);fflush(stdout);
 				close(fd[parent_index][1]);
 			}
 			exit(0);
@@ -168,20 +175,24 @@ int main(){
 			int prev_node = find_prev_node(parent_index);
 			//printf("Preparing to forward at %d\n",parent_index);fflush(stdout);
 			if(prev_node < parent_index && next_node > parent_index){//prev is parent and next is child
-				nbytes = read(fd[prev_node][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
+				nbytes = read(fd[prev_node][0], dest_buffer, 100);
 				close(fd[prev_node][0]);
 				write(fd[parent_index][1], dest_buffer, sizeof(dest_buffer));
-				printf("Forwarding at %d \n",parent_index);fflush(stdout);
+				printf("Forwarding at %d\n",parent_index);fflush(stdout);
 				close(fd[parent_index][1]);
 				//printf("Writing --%d bytes-- to %d and Exiting %d\n",nbytes,next_node,parent_index);fflush(stdout);
 
 			}else if(prev_node > parent_index && next_node < parent_index){//prev is child and next is parent
-				nbytes = read(fd[parent_index][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
+				nbytes = read(fd[parent_index][0], dest_buffer, 100);
 				close(fd[parent_index][0]);
 				write(fd[next_node][1], dest_buffer, sizeof(dest_buffer));
-				printf("Forwarding at %d \n",parent_index);fflush(stdout);
+				printf("Forwarding at %d\n",parent_index);fflush(stdout);
 				close(fd[next_node][1]);
 				//printf("Writing --%d bytes-- to %d and Exiting %d\n",nbytes,next_node,parent_index);fflush(stdout);
+			}else if(prev_node > parent_index && next_node > parent_index){
+				nbytes = read(fd[parent_index][0], dest_buffer, 100);
+				printf("Forwarding at %d\n",parent_index);fflush(stdout);
+				write(fd[parent_index][1], dest_buffer, sizeof(dest_buffer));
 			}
 			exit(0);
 			
