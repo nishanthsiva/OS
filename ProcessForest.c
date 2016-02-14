@@ -3,10 +3,13 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <sys/shm.h>
+#include <sys/stat.h> 
 
 int s_tree=0,d_tree=0,s,d, h;
 int path_size;
 int path[100];
+#define KEY 9876 
 
 void getMessagePath(){
 	int temp_s = s;
@@ -200,9 +203,14 @@ int find_next_node(int current_node, int tree_index){
 
 int main(){
 	int p,i,n,ab;
-	s_tree = 1;d_tree = 1;
-	s=7;d=0;h=4;
+	s_tree = 1;d_tree = 0;
+	s=7;d=14;h=4;
 	getMessagePath();
+	//create a shared segment
+	int segment_id; 
+	char *shared_memory; 
+	const int size = 4096; 
+	//printf("Size of Shared Memory - %d\n"+strlen(shared_memory));
 	printf("Final Path -\t");
 	for(i=0;i<path_size;i++){
 		printf("%d\t",path[i]);
@@ -255,78 +263,118 @@ int main(){
 	
 	//printf("PIPES of %d in %d tree - %d & %d\n",parent_index,tree_index,fd[(tree_index*15)+parent_index][0], fd[(tree_index*15)+parent_index][1]);fflush(stdout);
 	while(nodeInForestPath(parent_index, tree_index) == 1){
-		//printf("Prev Node for %d from Tree %d in Path - %d\n",parent_index,tree_index,find_prev_node(parent_index,tree_index));fflush(stdout);
+		
 		/*
 		*ignore process with index -10
 		*
 		*/
-		nbytes = 0;
-		if(parent_index == s && tree_index == s_tree){
-			int next_node = find_next_node(s, s_tree);
-			if( next_node == -10){
-				//write to shared memory
-			}else if(next_node != -1){
-				if(next_node < parent_index){ //if next node is parent then write to parent
-					write(fd[(15*tree_index)+next_node][1], "I am message", (strlen("I am message")+1));
-					printf("Transmitting from source at %d of Tree %d through %d pipe of %d\n",s,tree_index,fd[(15*tree_index)+next_node][1],(15*tree_index)+next_node);fflush(stdout);
-					close(fd[(15*tree_index)+next_node][1]);
-				}else{ // else write to self
-					write(fd[(15*tree_index)+parent_index][1], "I am message", (strlen("I am message")+1));
-					printf("Transmitting from source at %d of Tree %d through %d pipe of %d\n",s,tree_index,fd[(15*tree_index)+parent_index][1],(15*tree_index)+parent_index);fflush(stdout);
-					close(fd[(15*tree_index)+parent_index][1]);
+		if(parent_index != -10){
+			//printf("Prev Node for %d from Tree %d in Path - %d\n",parent_index,tree_index,find_prev_node(parent_index,tree_index));fflush(stdout);
+			nbytes = 0;
+			if(parent_index == s && tree_index == s_tree){
+				int next_node = find_next_node(s, s_tree);
+				if( next_node == -10){
+					//write to shared memory
+					printf("Writing to SHM from Source \n");fflush(stdout);
+					segment_id = shmget(KEY, size, S_IRUSR|S_IWUSR|IPC_CREAT);
+					shared_memory=(char *)shmat(segment_id, NULL,0); 
+					sprintf(shared_memory, "I am message");
+					shmdt(shared_memory); 
+					break;
+				}else if(next_node != -1){
+					if(next_node < parent_index){ //if next node is parent then write to parent
+						write(fd[(15*tree_index)+next_node][1], "I am message", (strlen("I am message")+1));
+						printf("Transmitting from source at %d of Tree %d through %d pipe of %d\n",s,tree_index,fd[(15*tree_index)+next_node][1],(15*tree_index)+next_node);fflush(stdout);
+						close(fd[(15*tree_index)+next_node][1]);
+					}else{ // else write to self
+						write(fd[(15*tree_index)+parent_index][1], "I am message", (strlen("I am message")+1));
+						printf("Transmitting from source at %d of Tree %d through %d pipe of %d\n",s,tree_index,fd[(15*tree_index)+parent_index][1],(15*tree_index)+parent_index);fflush(stdout);
+						close(fd[(15*tree_index)+parent_index][1]);
+					}
+					break;
 				}
-			}
-			
-			exit(0);
-		}else if(parent_index != d){
-			int next_node = find_next_node(parent_index,tree_index);
-			int prev_node = find_prev_node(parent_index,tree_index);
-			if(prev_node == -10){
-				//read from shared mem and write to self
-			}
-			if(next_node == -10){
-				//read from self and write to shared mem
-			}
-			if(prev_node != -10 && next_node != -10){
-				//printf("Preparing to forward at %d\n",parent_index);fflush(stdout);
-				if(prev_node < parent_index && next_node > parent_index){//prev is parent and next is child
-					nbytes = read(fd[(15*tree_index)+prev_node][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
-					close(fd[(15*tree_index)+prev_node][0]);
-					write(fd[(15*tree_index)+parent_index][1], dest_buffer, sizeof(dest_buffer));
-					printf("Forwarding at %d of Tree %d\n",parent_index,tree_index);fflush(stdout);
+				
+			}else if(parent_index != d){
+				int next_node = find_next_node(parent_index,tree_index);
+				int prev_node = find_prev_node(parent_index,tree_index);
+				if(prev_node == -10){
+					//read from shared mem and write to self
+					segment_id = shmget(KEY, size, S_IRUSR|S_IWUSR|IPC_CREAT);
+					shared_memory=(char *)shmat(segment_id, NULL,0);
+					write(fd[(15*tree_index)+parent_index][1], shared_memory, strlen(shared_memory));
+					printf("Forwarding at Root %d of Tree %d Through Shared Memory using %lu\n",parent_index,tree_index,strlen(shared_memory));fflush(stdout);
+					//shmdt(shared_memory);
 					close(fd[(15*tree_index)+parent_index][1]);
-					//printf("Writing --%d bytes-- to %d and Exiting %d\n",nbytes,next_node,parent_index);fflush(stdout);
+					shmdt(shared_memory);
+					break;
 
-				}else if(prev_node > parent_index && next_node < parent_index){//prev is child and next is parent
+					
+				}
+				if(next_node == -10){
+					//read from self and write to shared mem
 					nbytes = read(fd[(15*tree_index)+parent_index][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
 					close(fd[(15*tree_index)+parent_index][0]);
-					write(fd[(15*tree_index)+next_node][1], dest_buffer, sizeof(dest_buffer));
-					printf("Forwarding at %d of Tree %d\n",parent_index,tree_index);fflush(stdout);
-					close(fd[(15*tree_index)+next_node][1]);
-					//printf("Writing --%d bytes-- to %d and Exiting %d\n",nbytes,next_node,parent_index);fflush(stdout);
+					segment_id = shmget(KEY, size, S_IRUSR|S_IWUSR|IPC_CREAT);
+					shared_memory=(char *)shmat(segment_id, NULL,0);
+					sprintf(shared_memory, dest_buffer); 
+					printf("Forwarding at Root %d of Tree %d Through Shared Memory using %lu\n",parent_index,tree_index,strlen(shared_memory));fflush(stdout);
+					shmdt(shared_memory); 
+					break;
 				}
-				exit(0);
-			}
-			
-			
-		}else if(parent_index == d && tree_index == d_tree){
-			int prev_node = find_prev_node(parent_index, tree_index);
-			if(prev_node == -10){
-				//read from shared memory
-			}else if(prev_node != -1){
-				if(prev_node < parent_index){ // if prev node is parent
-					nbytes = read(fd[(15*tree_index)+prev_node][0], dest_buffer, sizeof(dest_buffer));
-					close(fd[(15*tree_index)+prev_node][0]);
-				}else{
-					nbytes = read(fd[(15*tree_index)+parent_index][0], dest_buffer, sizeof(dest_buffer));
-					close(fd[(15*tree_index)+parent_index][0]);
+				if(prev_node != -10 && next_node != -10){
+					//printf("Preparing to forward at %d\n",parent_index);fflush(stdout);
+					if(prev_node < parent_index && next_node > parent_index){//prev is parent and next is child
+						nbytes = read(fd[(15*tree_index)+prev_node][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
+						close(fd[(15*tree_index)+prev_node][0]);
+						write(fd[(15*tree_index)+parent_index][1], dest_buffer, sizeof(dest_buffer));
+						printf("Forwarding at %d of Tree %d\n",parent_index,tree_index);fflush(stdout);
+						close(fd[(15*tree_index)+parent_index][1]);
+						break;
+						//printf("Writing --%d bytes-- to %d and Exiting %d\n",nbytes,next_node,parent_index);fflush(stdout);
+
+					}else if(prev_node > parent_index && next_node < parent_index){//prev is child and next is parent
+						nbytes = read(fd[(15*tree_index)+parent_index][0], dest_buffer, (strlen("I am message")+1)*sizeof(char));
+						close(fd[(15*tree_index)+parent_index][0]);
+						write(fd[(15*tree_index)+next_node][1], dest_buffer, sizeof(dest_buffer));
+						printf("Forwarding at %d of Tree %d\n",parent_index,tree_index);fflush(stdout);
+						close(fd[(15*tree_index)+next_node][1]);
+						break;
+						//printf("Writing --%d bytes-- to %d and Exiting %d\n",nbytes,next_node,parent_index);fflush(stdout);
+					}
+					
 				}
-				printf("Transmission complete at %d of Tree %d with %s\n",parent_index,tree_index,dest_buffer);fflush(stdout);
-				exit(0);
+				
+				
+			}else if(parent_index == d && tree_index == d_tree){
+				int prev_node = find_prev_node(parent_index, tree_index);
+				if(prev_node == -10){
+					//read from shared memory
+					segment_id = shmget(KEY, size, S_IRUSR|S_IWUSR|IPC_CREAT);
+					shared_memory=(char *)shmat(segment_id, NULL,0);
+					if(strlen(shared_memory) == 12){
+						printf("Transmission complete at %d of Tree through ShM %d with %s\n",parent_index,tree_index,shared_memory);fflush(stdout);
+						shmdt(shared_memory); 
+						shmctl(segment_id,IPC_RMID,NULL); 
+						break;
+					}
+				}else if(prev_node != -1){
+					if(prev_node < parent_index){ // if prev node is parent
+						nbytes = read(fd[(15*tree_index)+prev_node][0], dest_buffer, sizeof(dest_buffer));
+						close(fd[(15*tree_index)+prev_node][0]);
+					}else{
+						nbytes = read(fd[(15*tree_index)+parent_index][0], dest_buffer, sizeof(dest_buffer));
+						close(fd[(15*tree_index)+parent_index][0]);
+					}
+					printf("Transmission complete at %d of Tree %d with %s\n",parent_index,tree_index,dest_buffer);fflush(stdout);
+					break;
+				}
 			}
+		}else{
+			break;
 		}
+		
 	}
 	wait(NULL);
 	wait(NULL);
-	//printf("Exiting %d on %d\n",parent_index, tree_index);
+	//printf("Exiting %d on %d with PID - %d\n",parent_index, tree_index,getpid());
 }
