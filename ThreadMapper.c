@@ -4,6 +4,7 @@
  *  the library provides uthread_create, uthread_yield and uthread_exit 
 */
 
+#define _XOPEN_SOURCE
 #define _GNU_SOURCE
 #include <sched.h>
 #include <stdio.h>
@@ -22,14 +23,14 @@ int func1()
 {
   int i;
   for(i=0;i<3;i++){
-    printf("This is thread 1.\n");
+    printf("Executing thread 1.\n");
     sleep(1);
     if( i==1){
       printf("Calling yeild on thread 1\n");
       uthread_yield();
     }
   }
-  printf("Thread 1 exit.\n");
+  printf("Exiting Thread 1\n");
   uthread_exit();
 }
 
@@ -37,14 +38,14 @@ int func2()
 {
   int i;
   for(i=0;i<3;i++){
-    printf("This is thread 2.\n");
+    printf("Executing thread 2.\n");
     sleep(1);
     if( i==1){
       printf("Calling yeild on thread 2\n");
       uthread_yield();
     }
   }
-  printf("Thread 2 exit.\n");
+  printf("Exiting Thread 2.\n");
   uthread_exit();
 }
 
@@ -52,14 +53,14 @@ int func3()
 {
   int i;
   for(i=0;i<3;i++){
-    printf("This is thread 3.\n");
+    printf("Executing thread 3.\n");
     sleep(1);
     if( i==1){
       printf("Calling yeild on thread 3\n");
       uthread_yield();
     }
   }
-  printf("Thread 3 exit.\n");
+  printf("Exiting Thread 3.\n");
   uthread_exit();
 }
 
