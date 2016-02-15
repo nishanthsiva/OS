@@ -205,6 +205,7 @@ int find_next_node(int current_node, int tree_index){
 int main(int argc, char* argv[]){
 	int p,i,n,ab;
 	h = (int) strtol(argv[1], (char **)NULL, 10);
+	h=h+1;
 	char *m = malloc(sizeof(argv[2]));
 	strcpy(m,argv[2]);
 	s_tree = (int) strtol(argv[3], (char **)NULL, 10);
