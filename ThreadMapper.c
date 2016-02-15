@@ -1,9 +1,3 @@
-
-/*
- *  many2one mapping v1.0: 
- *  the library provides enqueue_context, yield and dequeue_context 
-*/
-
 #define _XOPEN_SOURCE
 #define _GNU_SOURCE
 #include <sched.h>
@@ -14,21 +8,17 @@
 
  typedef struct context_queue Queue;
 
-//declare the functions provided by the thread library 
 Queue* create_context(int (*func)());
 Queue* dequeue_context();
 void enqueue_context(Queue *context);
 void yield();
-
-/**** Application code ****/
-
 
 
 struct context_queue{
   ucontext_t *context;
   Queue *next;
 };
-Queue *head=NULL, *tail=NULL;
+Queue *head=NULL;
 
 int func1()
 {
@@ -111,14 +101,15 @@ int func3()
 int main()
 {
   //create_context(func1);
-  enqueue_context(create_context(func1));
-
-  //create_context(func2);
-  enqueue_context(create_context(func2));
-
-  //create_context(func3);
-  enqueue_context(create_context(func3));
+  int i=0;
+  Queue *contexts[3];
+  contexts[0] = create_context(func1);
+  contexts[1] = create_context(func2);
+  contexts[2] = create_context(func3);
   
+  for(i=0;i<3;i++){
+    enqueue_context(contexts[i%3]);
+  }
   
   setcontext(head->context);
 }
@@ -154,7 +145,7 @@ Queue* dequeue_context()
 
   head = head->next;
 
-
+  printf("Dequeuing Context\n\n");
   return temp;
 
 }
@@ -172,7 +163,7 @@ void enqueue_context(Queue *context){
 
     temp->next = context;
   }
-
+  printf("Enqueuing Context\n\n");
   return;
   
 }
